@@ -2,40 +2,51 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"net"
 	"os"
 )
 
-type FooReader struct{}
+func Echo(conn net.Conn) {
+	defer conn.Close()
 
-func (foo *FooReader) Read(b []byte) (n int, err error) {
-	fmt.Print("in > ")
-	return os.Stdin.Read(b)
-}
+	buff := make([]byte, 1024)
 
-type FooWriter struct{}
+	for {
+		n, err := conn.Read(buff[0:])
+		if err == io.EOF {
+			log.Println("End of file")
+			break
+		}
 
-func (foo *FooWriter) Write(b []byte) (n int, err error) {
-	fmt.Print("out > ")
-	return os.Stdout.Write(b)
+		if err != nil {
+			log.Println("Unexpected error")
+			break
+		}
+		fmt.Printf("Read %d bytes from echo %s\n", n, buff)
+
+		log.Println("Writing data")
+		if _, err := conn.Write(buff[0:n]); err != nil {
+			log.Fatalln("Unable to write data")
+		}
+	}
 }
 
 func main() {
-	// intantiate reader and writer
-	var (
-		reader FooReader
-		writer FooWriter
-	)
-
-	input := make([]byte, 4096)
-	s, err := reader.Read(input)
+	listener, err := net.Listen("tcp", ":3000")
 	if err != nil {
 		os.Exit(1)
 	}
-	fmt.Printf("Read %d bytes from StdIn\n", s)
+	fmt.Println("Listening on port 3000")
 
-	w, err := writer.Write(input)
-	if err != nil {
-		os.Exit(1)
+	for {
+		conn, err := listener.Accept()
+		log.Println("Received connection")
+		if err != nil {
+			os.Exit(1)
+		}
+
+		go Echo(conn)
 	}
-	fmt.Printf("Write %d bytes to StdOut\n", w)
 }
