@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"archive/zip"
 	"encoding/xml"
 	"strings"
 )
@@ -38,4 +39,40 @@ func (o *OfficeAppProperty) GetMajorVersion() string {
 	}
 
 	return v
+}
+
+func process(r *zip.File, prop interface{}) error {
+	file, err := r.Open()
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err := xml.NewDecoder(file).Decode(&prop); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func NewProperties(z *zip.Reader) (*OfficeAppProperty, *OfficeCoreProperty, error) {
+	var appProp OfficeAppProperty
+	var coreProp OfficeCoreProperty
+
+	for _, f := range z.File {
+		switch f.Name {
+		case "docProps.core.xml":
+			if err := process(f, &coreProp); err != nil {
+				return nil, nil, err
+			}
+		case "docProps.app.xml":
+			if err := process(f, &appProp); err != nil {
+				return nil, nil, err
+			}
+		default:
+			continue
+		}
+	}
+
+	return &appProp, &coreProp, nil
 }
